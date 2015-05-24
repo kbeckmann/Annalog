@@ -16,7 +16,7 @@ from optparse import OptionParser
 from time import gmtime, strftime
 from datetime import datetime
 import json
-from urlhandler import URLHandler
+from redditscraper import RedditScraper
 
 import re
 
@@ -44,7 +44,7 @@ class MUCBot(sleekxmpp.ClientXMPP):
     def __init__(self, jid, password, room, nick):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
-        self.urlhandler = URLHandler(self)
+        self.scraper = RedditScraper(self)
 
         self.room = room
         self.nick = nick
@@ -108,6 +108,7 @@ class MUCBot(sleekxmpp.ClientXMPP):
                                         # If a room password is needed, use:
                                         # password=the_room_password,
                                         wait=True)
+        self.scraper.start()
 
     def muc_message(self, msg):
         """
@@ -140,7 +141,8 @@ class MUCBot(sleekxmpp.ClientXMPP):
 
         #disabled because simon whines
         #self.log(msg)
-        self.urlhandler.handle(msg)
+
+        self.scraper.muc_message(msg)
 
 
 
