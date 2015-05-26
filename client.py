@@ -16,9 +16,11 @@ from optparse import OptionParser
 from time import gmtime, strftime
 from datetime import datetime
 import json
-from urlhandler import URLHandler
-
+from aeschat import AESChat
 import re
+import curses
+import collections
+
 
 import sleekxmpp
 
@@ -40,11 +42,16 @@ class MUCBot(sleekxmpp.ClientXMPP):
     who enter the room, and acknowledge any messages
     that mentions the bot's nickname.
     """
-
     def __init__(self, jid, password, room, nick):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
 
-        self.urlhandler = URLHandler(self)
+        self.aeschat = AESChat(self)
+        self.history = collections.deque(maxlen=100)
+        for x in range(0, 200):
+            self.history.append("[Spambot] Weee! %s" % x)
+        self.history.append("[Bob] hello!")
+        self.history.append("[Alice] hello there!")
+        self.history.append("[Eve] Mwhahahaa!")
 
         self.room = room
         self.nick = nick
@@ -70,22 +77,6 @@ class MUCBot(sleekxmpp.ClientXMPP):
         self.add_event_handler("muc::%s::got_online" % self.room,
                                self.muc_online)
 
-        self.logfile = datetime.strftime(datetime.now(), "logs/%Y%m%d_%H%M.txt")
-        self.urlfile = datetime.strftime(datetime.now(), "logs/urls.txt")
-        self.logfile_handle = open(self.logfile, "w")
-        self.urlfile_handle = open(self.logfile, "a")
-
-        self.urls = [] #todo: read file
-
-    def log(self, msg):
-        timestamp = strftime("[%Y-%m-%d %H:%M:%S +0000]", gmtime())
-        log = { "timestamp" : timestamp,
-                "nick" : str(msg['from']),
-                "body" : str(msg['body'])}
-
-        self.logfile_handle.write(json.dumps(log))
-        self.logfile_handle.write("\n")
-        self.logfile_handle.flush()
 
 
     def start(self, event):
@@ -109,6 +100,60 @@ class MUCBot(sleekxmpp.ClientXMPP):
                                         # password=the_room_password,
                                         wait=True)
 
+    def tui(self):
+        self.screen = curses.initscr()
+        self.refresh_screen()
+        self.ui_mode = 0
+        self.ui_msg_buf = ""
+        xxx = 0
+
+        while(1):
+            xxx +=1
+            x = self.screen.getch()
+            if x == curses.KEY_RESIZE:
+                self.refresh_screen()
+            elif x > 0:
+                self.ui_handle_key(x)
+            self.ui_refresh()
+            self.screen.addstr(2, 5, "wee [%d - %d] - %s" % (x, xxx, self.ui_msg_buf))
+            self.ui_writenick()
+
+    def refresh_screen(self):
+        self.screen.clear()
+        self.screen.border(0)
+        self.screen.timeout(1000)
+        self.screen.refresh()
+        self.ui_refresh()
+
+    def ui_refresh(self):
+        self.screen.addstr(1, 4, "Cryptochat [%s]" % self.room)
+        max_lines = self.screen.getmaxyx()[0] - 3
+        line = max_lines - 2
+        for msg in reversed(self.history):
+            line -= 1
+            if line < 3:
+                break
+            self.screen.addstr(line, 2, msg)
+        self.ui_writenick()
+
+    def ui_writenick(self):
+        max_lines = self.screen.getmaxyx()[0] - 3
+        self.screen.addstr(max_lines, 2, "[%s]: " % self.nick)
+
+    def ui_handle_key(self, key):
+        if key == 10:
+            self.aeschat.send(self.ui_msg_buf)
+            self.push_message("[%s] %s" % (self.nick, self.ui_msg_buf))
+            self.ui_msg_buf = ""
+        else:
+            self.ui_msg_buf += chr(key)
+
+
+
+    # Writes a message in the bottom of the screen, pushes old messages up a line
+    def push_message(self, msg):
+        self.history.append(msg)
+
     def muc_message(self, msg):
         """
         Process incoming message stanzas from any chat room. Be aware
@@ -131,16 +176,8 @@ class MUCBot(sleekxmpp.ClientXMPP):
                    for stanza objects and the Message stanza to see
                    how it may be used.
         """
-#        if msg['mucnick'] != self.nick and self.nick in msg['body']:
-#            self.send_message(mto=msg['from'].bare,
-#                              mbody="I heard that, %s." % msg['mucnick'],
-#                              mtype='groupchat')
-
-
-
-        #disabled because simon whines
-        #self.log(msg)
-        self.urlhandler.handle(msg)
+        if msg['mucnick'] != self.nick:
+            self.aeschat.handle(msg)
 
 
 
@@ -161,6 +198,7 @@ class MUCBot(sleekxmpp.ClientXMPP):
 #                              mbody="Hello, %s %s" % (presence['muc']['role'],
 #                                                      presence['muc']['nick']),
 #                              mtype='groupchat')
+
 
 
 if __name__ == '__main__':
@@ -254,7 +292,8 @@ if __name__ == '__main__':
         #
         # if xmpp.connect(('talk.google.com', 5222)):
         #     ...
-        xmpp.process(block=True)
+        xmpp.process(block=False)
+        xmpp.tui()
         print("Done")
     else:
         print("Unable to connect.")
