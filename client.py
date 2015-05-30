@@ -101,13 +101,14 @@ class MUCBot(sleekxmpp.ClientXMPP):
                                         wait=True)
 
     def tui(self):
+        self.exit = False
         self.screen = curses.initscr()
         self.refresh_screen()
         self.ui_mode = 0
         self.ui_msg_buf = ""
         xxx = 0
 
-        while(1):
+        while self.exit == False:
             xxx +=1
             x = self.screen.getch()
             if x == curses.KEY_RESIZE:
@@ -117,6 +118,13 @@ class MUCBot(sleekxmpp.ClientXMPP):
             self.refresh_screen()
             self.screen.addstr(2, 5, "wee [%d - %d] - %s" % (x, xxx, self.ui_msg_buf))
             self.ui_writenick()
+        self.ui_close()
+
+    def tui_close():
+        self.screen.keypad(0)
+        curses.nocbreak()
+        curses.echo()
+        curses.endwin()
 
     def refresh_screen(self):
         self.screen.clear()
@@ -144,6 +152,7 @@ class MUCBot(sleekxmpp.ClientXMPP):
     def chunkify(self, string, length):
         ret = []
         for s in string.split("\n"):
+            s = re.sub("\t", "    ", s)
             ret.extend([s[i : length + i] for i in range(0, len(s), length)])
         return ret
 
@@ -157,6 +166,9 @@ class MUCBot(sleekxmpp.ClientXMPP):
 
     def ui_handle_key(self, key):
         if key == 10:
+            if self.ui_msg_buf == "/quit":
+                self.exit = True
+                return
             self.aeschat.send(self.ui_msg_buf)
             self.push_message("[%s] %s" % (self.nick, self.ui_msg_buf))
             self.ui_msg_buf = ""
