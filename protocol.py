@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import base64
 import json
+import collections
 from Crypto import Random
 
 # Elliptic curve based signing. 'pip install ecdsa'. todo: change to ed25519
@@ -132,19 +133,14 @@ class TrustedGroupCommunication():
 
     def export_secret_to(self, user):
         aes = self.get_shared_aes_key_from(user)
-        #if user not in self.trusted_public_signing_keys_users:
-        #    return False
-        #user_pub = self.trusted_public_encryption_keys[user]
-        #shared_secret = self.private_encryption_key.get_shared_key(user_pub)
-        #key = hmac.new(self.context, msg=shared_secret, digestmod=hashlib.sha256).digest()
-        #aes = AESCipher(key)
         ciphertext = aes.encrypt(self.secret)
+        signature = self.sign(ciphertext)
+        message = ciphertext + signature
+
         #print "Ciphertext length:", len(ciphertext)
         #print "Cipher: ", binascii.hexlify(ciphertext)
         print "[%s] secret: %s" % (self.user, binascii.hexlify(self.secret))
         #print "self.secretlen: ", len(self.secret)
-        signature = self.sign(ciphertext)
-        message = ciphertext + signature
         #print "cipher len", len(ciphertext)
         #print "signature len", len(signature)
         #print "Complete message:", binascii.hexlify(message)
@@ -155,8 +151,10 @@ class TrustedGroupCommunication():
             return False
         msg_bin = base64.b64decode(message)
         print "message in:", binascii.hexlify(msg_bin)
+        if len(msg_bin) != 144:
+            return False
         secret = msg_bin[:80]
-        signature = msg_bin[80:]
+        signature = msg_bin[-64:]
         if self.verify(user, signature, secret):
             print "Verified key from", user
             aes = self.get_shared_aes_key_from(user)
@@ -168,8 +166,8 @@ class TrustedGroupCommunication():
 
     def import_secret_completed(self):
         key = ""
-        for k, v in self.imported_secrets.iteritems():
-            key = hmac.new(self.context, msg=(str(key) + k + v), digestmod=hashlib.sha256).digest()
+        for k, v in sorted(self.imported_secrets.items()):
+            key = hmac.new(self.context, msg=(key + k + v), digestmod=hashlib.sha256).digest()
         print "[%s] Session key: %s" % (self.user, binascii.hexlify(key))
         self.aes_session = AESCipher(key)
 
@@ -184,19 +182,38 @@ class TrustedGroupCommunication():
         return self.aes_session.decrypt(cipher)
 
 
-class Test():
+
+
+import unittest
+
+class ProtocolTest(unittest.TestCase):
 
     ''' Agree upon a shared public string, such as the name of a chat room '''
     CONTEXT = "The secret chat room"
 
-    def generate_keys(self):
-        self.alice = TrustedGroupCommunication.generate(Test.CONTEXT, "alice")
-        self.bob = TrustedGroupCommunication.generate(Test.CONTEXT, "bob")
-        self.charlie = TrustedGroupCommunication.generate(Test.CONTEXT, "charlie")
+    def test_generate_keys(self):
+        self.generate_keys()
 
-        self.save_key_file(self.alice, "alice.key")
-        self.save_key_file(self.bob, "bob.key")
-        self.save_key_file(self.charlie, "charlie.key")
+    def generate_keys(self):
+        self.alice_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "alice")
+        self.bob_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "bob")
+        self.charlie_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "charlie")
+
+        self.save_key_file(self.alice_tmp, "alice.key")
+        self.save_key_file(self.bob_tmp, "bob.key")
+        self.save_key_file(self.charlie_tmp, "charlie.key")
+
+        self.load_keys()
+
+        self.compare_tgc(self.alice_tmp, self.alice)
+        self.compare_tgc(self.bob_tmp, self.bob)
+        self.compare_tgc(self.charlie_tmp, self.charlie)
+
+    def compare_tgc(self, a, b):
+        self.assertEqual(a.export_public_signing_key(), b.export_public_signing_key())
+        self.assertEqual(a.export_private_signing_key(), b.export_private_signing_key())
+        self.assertEqual(a.export_public_encryption_key(), b.export_public_encryption_key())
+        self.assertEqual(a.export_private_encryption_key(), b.export_private_encryption_key())
 
     def save_key_file(self, gtp, filename):
         with open(filename, "w") as f:
@@ -204,10 +221,18 @@ class Test():
             f.write(keys)
 
     ''' Always call this first in a test to ensure a clean start '''
+    def test_load_keys(self):
+        self.load_keys()
+
     def load_keys(self):
-        self.alice = TrustedGroupCommunication.from_key_file("alice.key", Test.CONTEXT, "alice")
-        self.bob = TrustedGroupCommunication.from_key_file("bob.key", Test.CONTEXT, "bob")
-        self.charlie = TrustedGroupCommunication.from_key_file("charlie.key", Test.CONTEXT, "charlie")
+        self.alice = TrustedGroupCommunication.from_key_file("alice.key", ProtocolTest.CONTEXT, "alice")
+        self.assertIsInstance(self.alice, TrustedGroupCommunication)
+
+        self.bob = TrustedGroupCommunication.from_key_file("bob.key", ProtocolTest.CONTEXT, "bob")
+        self.assertIsInstance(self.bob, TrustedGroupCommunication)
+
+        self.charlie = TrustedGroupCommunication.from_key_file("charlie.key", ProtocolTest.CONTEXT, "charlie")
+        self.assertIsInstance(self.charlie, TrustedGroupCommunication)
 
     def test_signing(self):
         self.load_keys()
@@ -218,30 +243,32 @@ class Test():
         bob_message_sig = self.bob.sign(bob_message)
         print "Can Alice verify Bob's message?", self.alice.verify("bob", bob_message_sig, bob_message)
 
-    def key_exchange(self):
+    def test_exchange_keys(self):
         self.load_keys()
+        self.exchange_keys()
 
+    def exchange_keys(self):
         ''' Let all users exchange their public keys '''
-        self.alice.add_trusted_public_signing_key("bob", self.bob.export_public_signing_key())
-        self.alice.add_trusted_public_encryption_key("bob", self.bob.export_public_encryption_key())
+        self.do_exchange_keys(self.alice, self.bob, "bob")
+        self.do_exchange_keys(self.alice, self.charlie, "charlie")
 
-        self.alice.add_trusted_public_signing_key("charlie", self.charlie.export_public_signing_key())
-        self.alice.add_trusted_public_encryption_key("charlie", self.charlie.export_public_encryption_key())
+        self.do_exchange_keys(self.bob, self.alice, "alice")
+        self.do_exchange_keys(self.bob, self.charlie, "charlie")
 
-        self.bob.add_trusted_public_signing_key("alice", self.alice.export_public_signing_key())
-        self.bob.add_trusted_public_encryption_key("alice", self.alice.export_public_encryption_key())
+        self.do_exchange_keys(self.charlie, self.alice, "alice")
+        self.do_exchange_keys(self.charlie, self.bob, "bob")
 
-        self.bob.add_trusted_public_signing_key("charlie", self.charlie.export_public_signing_key())
-        self.bob.add_trusted_public_encryption_key("charlie", self.charlie.export_public_encryption_key())
+    def do_exchange_keys(self, a, b, user):
+        a.add_trusted_public_signing_key(user, b.export_public_signing_key())
+        a.add_trusted_public_encryption_key(user, b.export_public_encryption_key())
+        # todo assert that it's been imported
 
-        self.charlie.add_trusted_public_signing_key("alice", self.alice.export_public_signing_key())
-        self.charlie.add_trusted_public_encryption_key("alice", self.alice.export_public_encryption_key())
+    def test_exchange_secrets(self):
+        self.load_keys()
+        self.exchange_keys()
+        self.exchange_secrets()
 
-        self.charlie.add_trusted_public_signing_key("bob", self.bob.export_public_signing_key())
-        self.charlie.add_trusted_public_encryption_key("bob", self.bob.export_public_encryption_key())
-
-    def secret_exchange(self):
-        self.key_exchange()
+    def exchange_secrets(self):
 
         ''' Let all users exchange their session secrets '''
         self.alice.import_secret_from("bob", self.bob.export_secret_to("alice"))
@@ -256,7 +283,9 @@ class Test():
         self.charlie.import_secret_completed()
 
     def test_chat(self):
-        self.secret_exchange()
+        self.load_keys()
+        self.exchange_keys()
+        self.exchange_secrets()
 
         alice_msg = "Hello, I'm Alice!"
         print "Alice writes [%s]" % alice_msg
@@ -265,14 +294,6 @@ class Test():
         assert alice_msg == bob_decrypted
         print "Bob decrypted [%s]" % bob_decrypted
 
-    def run(self):
-        self.generate_keys()
-        self.test_signing()
-        self.key_exchange()
-        self.secret_exchange()
-        self.test_chat()
-
 
 if __name__ == '__main__':
-    Test().run()
-    quit()
+    unittest.main()
