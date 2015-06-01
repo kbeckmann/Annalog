@@ -111,10 +111,10 @@ class MUCBot(sleekxmpp.ClientXMPP):
             xxx +=1
             x = self.screen.getch()
             if x == curses.KEY_RESIZE:
-                self.refresh_screen()
+                pass
             elif x > 0:
                 self.ui_handle_key(x)
-            self.ui_refresh()
+            self.refresh_screen()
             self.screen.addstr(2, 5, "wee [%d - %d] - %s" % (x, xxx, self.ui_msg_buf))
             self.ui_writenick()
 
@@ -127,24 +127,44 @@ class MUCBot(sleekxmpp.ClientXMPP):
 
     def ui_refresh(self):
         self.screen.addstr(1, 4, "Cryptochat [%s]" % self.room)
-        max_lines = self.screen.getmaxyx()[0] - 3
-        line = max_lines - 2
+        self.ui_print_history()
+
+    def ui_print_history(self):
+        (y, x) = self.screen.getmaxyx()
+        max_lines = y - 3
+        line = max_lines
         for msg in reversed(self.history):
-            line -= 1
-            if line < 3:
-                break
-            self.screen.addstr(line, 2, msg)
-        self.ui_writenick()
+            chunks = self.chunkify(msg, x-2)
+            for chunk in reversed(chunks):
+                self.screen.addstr(line - 1, 1, chunk)
+                line -= 1
+                if line < 3:
+                    return
+
+    def chunkify(self, string, length):
+        ret = []
+        for s in string.split("\n"):
+            ret.extend([s[i : length + i] for i in range(0, len(s), length)])
+        return ret
 
     def ui_writenick(self):
-        max_lines = self.screen.getmaxyx()[0] - 3
-        self.screen.addstr(max_lines, 2, "[%s]: " % self.nick)
+        (y, x) = self.screen.getmaxyx()
+        max_lines = y - 2
+        line = "[%s]: " % self.nick
+        max_len = x - len(line) - 3
+        line += self.ui_msg_buf[-max_len:]
+        self.screen.addstr(max_lines, 1, line)
 
     def ui_handle_key(self, key):
         if key == 10:
             self.aeschat.send(self.ui_msg_buf)
             self.push_message("[%s] %s" % (self.nick, self.ui_msg_buf))
             self.ui_msg_buf = ""
+        elif key == 127:
+            self.ui_msg_buf = self.ui_msg_buf[:-1]
+        elif key < 32:
+            # ignore strange keys
+            pass
         else:
             self.ui_msg_buf += chr(key)
 

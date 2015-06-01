@@ -30,8 +30,9 @@ class AESChat():
             self.mucbot.push_message("[%s](unenctypted): %s" % (msg['mucnick'], msg['body']))
 
     def send(self, msg):
-        cipher = self.aescipher.encrypt(msg)
-        body = "!MSG%s" % cipher
+#        cipher = self.aescipher.encrypt(msg)
+#        body = "!MSG%s" % cipher
+        body = msg
         self.mucbot.send_message(mto=self.mucbot.room,
                           mbody=body,
                           mtype='groupchat')
