@@ -5,6 +5,7 @@ import base64
 import json
 import collections
 from Crypto import Random
+import algo
 
 # Elliptic curve based signing. 'pip install ecdsa'. todo: change to ed25519
 from ecdsa import SigningKey, VerifyingKey, SECP256k1
@@ -17,9 +18,10 @@ from aescipher import AESCipher
 
 
 class TrustedGroupCommunication():
-    def __init__(self, private_signing_key_der, public_signing_key_der,
+    def __init__(self, signing_algo, private_signing_key_der, public_signing_key_der,
                  private_encryption_key, public_encryption_key,
                  context, user):
+        self.signing_algo = signing_algo
         self.trusted_public_signing_keys = {}
         self.trusted_public_signing_keys_users = []
 
@@ -27,8 +29,8 @@ class TrustedGroupCommunication():
         self.trusted_public_encryption_keys_users = []
         self.imported_secrets = {}
 
-        self.private_signing_key = SigningKey.from_der(private_signing_key_der)
-        self.public_signing_key = VerifyingKey.from_der(public_signing_key_der)
+        self.signer = self.signing_algo(private_signing_key_der, public_signing_key_der)
+
         self.private_encryption_key = Private(secret=private_encryption_key)
         self.public_encryption_key = Public(public=public_encryption_key)
 
@@ -40,10 +42,11 @@ class TrustedGroupCommunication():
 
 
     @classmethod
-    def from_key_file(klass, key_file, context, user):
+    def from_key_file(klass, signing_algo, key_file, context, user):
         with open(key_file) as f:
             keys = json.loads(f.read())
             return klass(
+                signing_algo,
                 binascii.unhexlify(keys["private_signing_key"]),
                 binascii.unhexlify(keys["public_signing_key"]),
                 binascii.unhexlify(keys["private_encryption_key"]),
@@ -51,25 +54,16 @@ class TrustedGroupCommunication():
                 context, user)
 
     @classmethod
-    def generate(klass, context, user):
-        private_signing_key = SigningKey.generate(curve=SECP256k1)
-        public_signing_key = private_signing_key.get_verifying_key()
+    def generate(klass, signing_algo, context, user):
+        signer = signing_algo(None, None)
         private_encryption_key = Private(secret=Random.new().read(32))
         public_encryption_key = private_encryption_key.get_public()
-        return klass(private_signing_key.to_der(),
-                     public_signing_key.to_der(),
+        return klass(signing_algo,
+                     signer.export_private_key(),
+                     signer.export_public_key(),
                      private_encryption_key.serialize(),
                      public_encryption_key.serialize(),
                      context, user)
-
-
-    def load_private_signing_key(self, der):
-        if der:
-            self.private_signing_key = SigningKey.from_der(der)
-        else:
-            self.private_signing_key = SigningKey.generate(curve=SECP256k1)
-            print "Generated private signing key"
-        self.public_signing_key = self.private_signing_key.get_verifying_key()
 
     def load_private_encryption_key(self, key):
         if key and len(key) == 32:
@@ -91,7 +85,7 @@ class TrustedGroupCommunication():
         if name in self.trusted_public_signing_keys_users:
             return False
         self.trusted_public_signing_keys_users.append(name)
-        self.trusted_public_signing_keys[name] = VerifyingKey.from_der(der)
+        self.trusted_public_signing_keys[name] = der
         return True
 
     def add_trusted_public_encryption_key(self, name, key):
@@ -102,10 +96,10 @@ class TrustedGroupCommunication():
         return True
 
     def export_private_signing_key(self):
-        return self.private_signing_key.to_der()
+        return self.signer.export_private_key()
 
     def export_public_signing_key(self):
-        return self.public_signing_key.to_der()
+        return self.signer.export_public_key()
 
     def export_private_encryption_key(self):
         return self.private_encryption_key.serialize()
@@ -120,7 +114,7 @@ class TrustedGroupCommunication():
                            "public_encryption_key" : binascii.hexlify(self.export_public_encryption_key())});
 
     def sign(self, msg):
-        return self.private_signing_key.sign_deterministic(msg)
+        return self.signer.sign(msg)
 
     def get_shared_aes_key_from(self, user):
         if user not in self.trusted_public_signing_keys_users:
@@ -134,7 +128,7 @@ class TrustedGroupCommunication():
     def export_secret_to(self, user):
         aes = self.get_shared_aes_key_from(user)
         ciphertext = aes.encrypt(self.secret)
-        signature = self.sign(ciphertext)
+        signature = self.signer.sign(ciphertext)
         message = ciphertext + signature
 
         #print "Ciphertext length:", len(ciphertext)
@@ -151,11 +145,12 @@ class TrustedGroupCommunication():
             return False
         msg_bin = base64.b64decode(message)
         print "message in:", binascii.hexlify(msg_bin)
-        if len(msg_bin) != 144:
-            return False
+        if len(msg_bin) < 64:
+            raise Exception("Message too short! (%d)" % len(msg_bin))
         secret = msg_bin[:80]
-        signature = msg_bin[-64:]
-        if self.verify(user, signature, secret):
+        signature = msg_bin[80:]
+        pubkey = self.trusted_public_signing_keys[user]
+        if self.signer.verify(pubkey, signature, secret):
             print "Verified key from", user
             aes = self.get_shared_aes_key_from(user)
             secret_plaintext = aes.decrypt(secret)
@@ -173,7 +168,8 @@ class TrustedGroupCommunication():
 
     def verify(self, user, signature, msg):
         if user in self.trusted_public_signing_keys_users:
-            return self.trusted_public_signing_keys[user].verify(signature, msg)
+            key = self.trusted_public_signing_keys[user]
+            return self.signer.verify(key, signature, msg)
 
     def encrypt_message(self, plaintext):
         return self.aes_session.encrypt(plaintext)
@@ -186,18 +182,18 @@ class TrustedGroupCommunication():
 
 import unittest
 
-class ProtocolTest(unittest.TestCase):
+class ProtocolTest(object):
 
     ''' Agree upon a shared public string, such as the name of a chat room '''
     CONTEXT = "The secret chat room"
 
-    def test_generate_keys(self):
+    def test_1_generate_keys(self):
         self.generate_keys()
 
     def generate_keys(self):
-        self.alice_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "alice")
-        self.bob_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "bob")
-        self.charlie_tmp = TrustedGroupCommunication.generate(ProtocolTest.CONTEXT, "charlie")
+        self.alice_tmp = TrustedGroupCommunication.generate(self.algo, ProtocolTest.CONTEXT, "alice")
+        self.bob_tmp = TrustedGroupCommunication.generate(self.algo, ProtocolTest.CONTEXT, "bob")
+        self.charlie_tmp = TrustedGroupCommunication.generate(self.algo, ProtocolTest.CONTEXT, "charlie")
 
         self.save_key_file(self.alice_tmp, "alice.key")
         self.save_key_file(self.bob_tmp, "bob.key")
@@ -225,13 +221,13 @@ class ProtocolTest(unittest.TestCase):
         self.load_keys()
 
     def load_keys(self):
-        self.alice = TrustedGroupCommunication.from_key_file("alice.key", ProtocolTest.CONTEXT, "alice")
+        self.alice = TrustedGroupCommunication.from_key_file(self.algo, "alice.key", ProtocolTest.CONTEXT, "alice")
         self.assertIsInstance(self.alice, TrustedGroupCommunication)
 
-        self.bob = TrustedGroupCommunication.from_key_file("bob.key", ProtocolTest.CONTEXT, "bob")
+        self.bob = TrustedGroupCommunication.from_key_file(self.algo, "bob.key", ProtocolTest.CONTEXT, "bob")
         self.assertIsInstance(self.bob, TrustedGroupCommunication)
 
-        self.charlie = TrustedGroupCommunication.from_key_file("charlie.key", ProtocolTest.CONTEXT, "charlie")
+        self.charlie = TrustedGroupCommunication.from_key_file(self.algo, "charlie.key", ProtocolTest.CONTEXT, "charlie")
         self.assertIsInstance(self.charlie, TrustedGroupCommunication)
 
     def test_signing(self):
@@ -291,9 +287,19 @@ class ProtocolTest(unittest.TestCase):
         print "Alice writes [%s]" % alice_msg
         alice_enc = self.alice.encrypt_message(alice_msg)
         bob_decrypted = self.bob.decrypt_message(alice_enc)
-        assert alice_msg == bob_decrypted
+        self.assertEqual(alice_msg, bob_decrypted)
         print "Bob decrypted [%s]" % bob_decrypted
 
+class DSATest(unittest.TestCase, ProtocolTest):
+    def __init__(self, *args, **kwargs):
+        super(DSATest, self).__init__(*args, **kwargs)
+        self.algo = algo.DSASigner
+
+class ECDSATest(unittest.TestCase, ProtocolTest):
+    def __init__(self, *args, **kwargs):
+        super(ECDSATest, self).__init__(*args, **kwargs)
+        self.algo = algo.ECDSASigner
 
 if __name__ == '__main__':
     unittest.main()
+
