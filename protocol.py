@@ -7,18 +7,17 @@ import collections
 from Crypto import Random
 import algo
 
-# Elliptic curve based signing. 'pip install ecdsa'. todo: change to ed25519
-from ecdsa import SigningKey, VerifyingKey, SECP256k1
-
 # Elliptic curve based PKI encryption. 'pip install curve25519-donna'
-from curve25519 import Private, Public
+#from curve25519 import Private, Public
+import nacl
+from nacl.public import PrivateKey, PublicKey, Box
 
 # AES-CBC wrapper
 from aescipher import AESCipher
 
 
 class TrustedGroupCommunication():
-    def __init__(self, signing_algo, private_signing_key_der, public_signing_key_der,
+    def __init__(self, signing_algo, private_signing_key, public_signing_key,
                  private_encryption_key, public_encryption_key,
                  context, user):
         self.signing_algo = signing_algo
@@ -29,17 +28,16 @@ class TrustedGroupCommunication():
         self.trusted_public_encryption_keys_users = []
         self.imported_secrets = {}
 
-        self.signer = self.signing_algo(private_signing_key_der, public_signing_key_der)
+        self.signer = self.signing_algo(private_signing_key, public_signing_key)
 
-        self.private_encryption_key = Private(secret=private_encryption_key)
-        self.public_encryption_key = Public(public=public_encryption_key)
+        self.private_encryption_key = PrivateKey(private_encryption_key)
+        self.public_encryption_key = PublicKey(public_encryption_key)
 
         self.secret = None
         self.context = context
         self.user = user
 
         self.refresh_secret()
-
 
     @classmethod
     def from_key_file(klass, signing_algo, key_file, context, user):
@@ -56,24 +54,23 @@ class TrustedGroupCommunication():
     @classmethod
     def generate(klass, signing_algo, context, user):
         signer = signing_algo(None, None)
-        private_encryption_key = Private(secret=Random.new().read(32))
-        public_encryption_key = private_encryption_key.get_public()
+        private_encryption_key = PrivateKey.generate()
+        public_encryption_key = private_encryption_key.public_key
         return klass(signing_algo,
                      signer.export_private_key(),
                      signer.export_public_key(),
-                     private_encryption_key.serialize(),
-                     public_encryption_key.serialize(),
+                     str(private_encryption_key),
+                     str(public_encryption_key),
                      context, user)
 
     def load_private_encryption_key(self, key):
         if key and len(key) == 32:
-            self.private_encryption_key = Private(secret=key)
+            self.private_encryption_key = PrivateKey(key)
         else:
             print "Generating private encryption key"
-            key = Random.new().read(32)
-            self.private_encryption_key = Private(secret=key)
+            self.private_encryption_key = PrivateKey.generate()
 
-        self.public_encryption_key = self.private_encryption_key.get_public()
+        self.public_encryption_key = self.private_encryption_key.public_key
 
 
     def refresh_secret(self):
@@ -92,7 +89,7 @@ class TrustedGroupCommunication():
         if name in self.trusted_public_encryption_keys_users:
             return False
         self.trusted_public_encryption_keys_users.append(name)
-        self.trusted_public_encryption_keys[name] = Public(public=key)
+        self.trusted_public_encryption_keys[name] = PublicKey(key)
         return True
 
     def export_private_signing_key(self):
@@ -102,10 +99,10 @@ class TrustedGroupCommunication():
         return self.signer.export_public_key()
 
     def export_private_encryption_key(self):
-        return self.private_encryption_key.serialize()
+        return str(self.private_encryption_key)
 
     def export_public_encryption_key(self):
-        return self.public_encryption_key.serialize()
+        return str(self.public_encryption_key)
 
     def export_all_keys(self):
         return json.dumps({"private_signing_key" : binascii.hexlify(self.export_private_signing_key()),
@@ -116,18 +113,15 @@ class TrustedGroupCommunication():
     def sign(self, msg):
         return self.signer.sign(msg)
 
-    def get_shared_aes_key_from(self, user):
+    def get_shared_secret_from(self, user):
         if user not in self.trusted_public_signing_keys_users:
             return False
-        user_pub = self.trusted_public_encryption_keys[user]
-        shared_secret = self.private_encryption_key.get_shared_key(user_pub)
-        key = hmac.new(self.context, msg=shared_secret, digestmod=hashlib.sha256).digest()
-        aes = AESCipher(key)
-        return aes
+	return Box(self.private_encryption_key, self.trusted_public_encryption_keys[user])
 
     def export_secret_to(self, user):
-        aes = self.get_shared_aes_key_from(user)
-        ciphertext = aes.encrypt(self.secret)
+        aes = self.get_shared_secret_from(user)
+	nonce = nacl.utils.random(Box.NONCE_SIZE)
+        ciphertext = aes.encrypt(self.secret, nonce)
         signature = self.signer.sign(ciphertext)
         message = ciphertext + signature
 
@@ -147,12 +141,12 @@ class TrustedGroupCommunication():
         print "message in:", binascii.hexlify(msg_bin)
         if len(msg_bin) < 64:
             raise Exception("Message too short! (%d)" % len(msg_bin))
-        secret = msg_bin[:80]
-        signature = msg_bin[80:]
+        secret = msg_bin[:72]
+        signature = msg_bin[72:]
         pubkey = self.trusted_public_signing_keys[user]
         if self.signer.verify(pubkey, signature, secret):
             print "Verified key from", user
-            aes = self.get_shared_aes_key_from(user)
+            aes = self.get_shared_secret_from(user)
             secret_plaintext = aes.decrypt(secret)
             print "[%s] decrypted secret from %s: %s" % (self.user, user, binascii.hexlify(secret_plaintext))
             self.imported_secrets[user] = secret_plaintext
