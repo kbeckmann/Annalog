@@ -300,6 +300,11 @@ class ECDSATest(unittest.TestCase, ProtocolTest):
         super(ECDSATest, self).__init__(*args, **kwargs)
         self.algo = algo.ECDSASigner
 
+class ED25519Test(unittest.TestCase, ProtocolTest):
+    def __init__(self, *args, **kwargs):
+        super(ED25519Test, self).__init__(*args, **kwargs)
+        self.algo = algo.ED25519Signer
+
 if __name__ == '__main__':
     unittest.main()
 

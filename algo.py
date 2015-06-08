@@ -44,6 +44,33 @@ class ECDSASigner(SigningAlgo):
 		key = VerifyingKey.from_der(key)
 		return key.verify(signature, message)
 
+# ED25519 using NaCl. 'pip install pynacl'
+import nacl.encoding
+import nacl.signing
+class ED25519Signer(SigningAlgo):
+	def __init__(self, private_key, public_key):
+		if not private_key:
+			self.private_key = nacl.signing.SigningKey.generate()
+			public_key = None
+		else:
+			self.private_key = nacl.signing.SigningKey(private_key)
+		if not public_key:
+			self.public_key = self.private_key.verify_key
+		else:
+			self.public_key = nacl.signing.VerifyKey(public_key)
+	def sign(self, message):
+		return self.private_key.sign(message).signature
+	def export_private_key(self):
+		return self.private_key.encode()
+	def export_public_key(self):
+		return self.public_key.encode()
+	@classmethod
+	def verify(klass, key, signature, message):
+		key = nacl.signing.VerifyKey(key)
+		return key.verify(signature + message)
+
+
+
 # Classic DSA siging 'pip install pycrypto'
 from Crypto.Random import random
 from Crypto.PublicKey import DSA
@@ -134,6 +161,15 @@ class ECDSASignerTest(unittest.TestCase, SigningAlgoTester):
 
 	def test_sign(self):
 		self.set_signing_algo(ECDSASigner)
+		self.sign()
+
+class ED25519SignerTest(unittest.TestCase, SigningAlgoTester):
+	def test_generate(self):
+		self.set_signing_algo(ED25519Signer)
+		self.generate()
+
+	def test_sign(self):
+		self.set_signing_algo(ED25519Signer)
 		self.sign()
 		
 class DSASignerTest(unittest.TestCase, SigningAlgoTester):
