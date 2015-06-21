@@ -2,4 +2,4 @@ ecdsa
 pynacl
 pycrypto
 curve25519-donna
-
+sleekxmpp
