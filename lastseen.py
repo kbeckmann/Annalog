@@ -34,11 +34,13 @@ class LastSeen():
         ret = ""
         db = sqlite3.connect('db.sq3')
 
-        c = db.execute('SELECT nick, count FROM lastseen ORDER BY count')
+        i = 1
+        c = db.execute('SELECT nick, count FROM lastseen ORDER BY count DESC')
         while True:
             row = c.fetchone()
             if (row):
-                ret = ret + str(row[0]) + "\t" + str(row[1]) + "\n"
+                ret = ret + str(i) + ". " + str(row[0]) + "\t" + str(row[1]) + "\n"
+                i = i + 1
             else:
                 break
 
@@ -62,7 +64,7 @@ class LastSeen():
                 mbody=body,
                 mtype='groupchat')
         elif msg['body'][:6] == "!stats":
-            body = self.stats()
+            body = 'Stats:\n' + self.stats()
             self.mucbot.send_message(mto=msg['from'].bare,
                 mbody=body,
                 mtype='groupchat')
