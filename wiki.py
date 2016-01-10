@@ -19,7 +19,7 @@ class Wiki():
             try:
                page  = wikipedia.page(q)
             except wikipedia.DisambiguationError as dis:
-                body = "Got a disambiguation page, maybe try:\n" + '\n'.join(dis.options)
+                body = "Got a disambiguation page, maybe try:\n" + '\n'.join(dis.options[:10])
             else:
                 summary = page.summary
                 while len(summary) > 460:
