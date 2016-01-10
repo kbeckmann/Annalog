@@ -9,7 +9,24 @@ class LastSeen():
     def __init__(self, mucbot):
         self.mucbot = mucbot
 
+        # mege nick_m and nick
+        db = sqlite3.connect('db.sq3')
+        c = db.execute('SELECT nick, count from lastseen WHERE nick like "%_m"')
+        while True:
+            row = c.fetchone()
+            if (row):
+                db.execute('UPDATE lastseen SET count = count + ? WHERE nick = ?', [row[1], row[0][:-2]])
+            else:
+                break
+
+        db.execute('DELETE FROM lastseen WHERE nick like "%_m"')
+        db.commit()
+        db.close()
+
     def lastseen(self, nick, time, update):
+        if len(nick) > 2 and nick.endswith("_m"):
+            nick = nick[:-2]
+
         db = sqlite3.connect('db.sq3')
         ret = None
 
