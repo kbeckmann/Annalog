@@ -26,6 +26,7 @@ from remindme import RemindMe
 from isup import IsUp
 from wiki import Wiki
 from wolfram import Wolfram
+from youtube import YouTube
 import re
 
 import sleekxmpp
@@ -65,7 +66,8 @@ class MUCBot(sleekxmpp.ClientXMPP):
             RemindMe(self),
             IsUp(self),
             Wiki(self),
-            Wolfram(self)
+            Wolfram(self),
+            YouTube(self)
         ]
 
         self.room = room
