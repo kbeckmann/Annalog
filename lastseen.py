@@ -9,7 +9,7 @@ class LastSeen():
     def __init__(self, mucbot):
         self.mucbot = mucbot
 
-        # mege nick_m and nick
+        # merge nick_m and nick
         db = sqlite3.connect('db.sq3')
         c = db.execute('SELECT nick, count from lastseen WHERE nick like "%_m"')
         while True:
