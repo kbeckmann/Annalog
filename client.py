@@ -27,6 +27,7 @@ from isup import IsUp
 from wiki import Wiki
 from wolfram import Wolfram
 from youtube import YouTube
+from shrug import Shrug
 import re
 
 import sleekxmpp
@@ -67,7 +68,8 @@ class MUCBot(sleekxmpp.ClientXMPP):
             IsUp(self),
             Wiki(self),
             Wolfram(self),
-            YouTube(self)
+            YouTube(self),
+            Shrug(self)
         ]
 
         self.room = room
