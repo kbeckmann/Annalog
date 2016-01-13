@@ -69,26 +69,28 @@ class RemindMe():
             if reqUser == '' or reqTime == '':
                 body = "Need user and time, see !help for usage"
             else:
+                body = ""
+                # convert human time to python time
                 try:
-                    body = ""
-                    # convert human time to python time
                     cal = pdt.Calendar()
                     if cal.parse(reqTime)[1] == 0:
                         body = "For being a dick, the reminder was set for 15 minutes!"
                         reqMsg = "not be a dick anymore"
                         reqUser = msg['mucnick']
-                        holdTime = cal.parse("15 minutes", datetime.now(timezone('UTC')))
+                        holdTime = cal.parse("15 minutes", datetime.now(tz.tzlocal()))
                     else:
-                        holdTime = cal.parse(reqTime, datetime.now(timezone('UTC')))
-
-                    # utc to db and local (for reply)
-                    dbTime = int(time.mktime(holdTime[0]))
-                    utcTime = datetime.fromtimestamp(dbTime)
-                    utcTime = utcTime.replace(tzinfo = tz.tzutc())
-                    localTime = utcTime.astimezone(tz.tzlocal())
-
+                        holdTime = cal.parse(reqTime, datetime.now(tz.tzlocal()))
+                except:
+                    body = "Time out of range"
+                else:
+                    # local to utc (for db)
+                    localTime = datetime.fromtimestamp(int(time.mktime(holdTime[0])))
+                    localTime = localTime.replace(tzinfo = tz.tzlocal())
                     nowTime = datetime.now(tz.tzlocal())
+
                     if localTime > nowTime:
+                        utcTime = localTime.astimezone(tz.tzutc())
+                        dbTime = int(time.mktime(utcTime.timetuple()))
                         db = sqlite3.connect('db.sq3')
                         db.execute('INSERT INTO reminders (sender, nick, time, msg) VALUES (?, ?, ?, ?)', (msg['from'].bare, reqUser, dbTime, reqMsg) )
                         db.commit()
@@ -100,8 +102,6 @@ class RemindMe():
                         body = "You can probably remember that long, %s..." % msg['mucnick']
                     else:
                         body = "Stop living in the past, %s!" % msg['mucnick']
-                except:
-                    body = "Time out of range"
 
             self.mucbot.send_message(mto=msg['from'].bare,
                 mbody=body,
