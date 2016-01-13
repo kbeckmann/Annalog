@@ -13,7 +13,7 @@ class URLHandler():
         self.salt1 = "happy happy hippo"
         self.salt2 = "sad pandas are sad"
         self.whitelist = ["1b49f24e1acf03ef8ad1b803593227ca1b94868c29d41a8ab22fbc7b6d94342c"]
-        self.url_history = collections.deque(maxlen=10)
+        self.url_history = collections.deque(maxlen=100)
 
     def hash(self, plaintext):
         return hashlib.sha256(self.salt1 + str(plaintext) + self.salt2).hexdigest()
@@ -42,8 +42,24 @@ class URLHandler():
 
     def handle(self, msg):
         if msg['body'][:4] == "!url":
-            self.mucbot.send_message(mto=msg['from'].bare,
-                mbody="URL History:\n%s" % ("\n".join(self.url_history) ),
+            matches = []
+            if len(msg['body']) > 5 and msg['body'][4] == ' ':
+                for url in self.url_history:
+                    if msg['body'][5:] in url:
+                        matches.append(url)
+
+                if len(matches) > 0:
+                    self.mucbot.send_message(mto=msg['from'].bare,
+                        mbody="URL History (matching \"%s\"):\n%s" % (msg['body'][5:], "\n".join(matches)),
+                        mtype='groupchat')
+                else:
+                    self.mucbot.send_message(mto=msg['from'].bare,
+                        mbody="URL History: Nothing found for \"%s\"" % msg['body'][5:],
+                        mtype='groupchat')
+            else:
+                q_size = len(self.url_history)
+                self.mucbot.send_message(mto=msg['from'].bare,
+                    mbody="URL History: %s" % ("Empty" if q_size == 0 else "\n" + "\n".join([self.url_history[i] for i in range(max(0, q_size-10), q_size)])),
                     mtype='groupchat')
 
         if msg['body'][:11] == "URL History" or msg['body'][:1] == "!" or msg['mucnick'] == "Annarchy":
