@@ -22,7 +22,7 @@ class Rules():
                 mtype='groupchat')
 
     def help(self):
-        return ["rules - Make sure the bot knows the rules"]
+        return ["rules - make sure the bot knows the rules"]
 
 class MUCBotMock():
     def send_message(self, mto, mbody, mtype):
