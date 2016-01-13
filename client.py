@@ -28,6 +28,7 @@ from wiki import Wiki
 from wolfram import Wolfram
 from youtube import YouTube
 from shrug import Shrug
+from rules import Rules
 import re
 
 import sleekxmpp
@@ -69,7 +70,8 @@ class MUCBot(sleekxmpp.ClientXMPP):
             Wiki(self),
             Wolfram(self),
             YouTube(self),
-            Shrug(self)
+            Shrug(self),
+            Rules(self)
         ]
 
         self.room = room
