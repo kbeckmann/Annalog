@@ -9,8 +9,13 @@ class Shrug():
 
     def handle(self, msg):
         if msg['body'][:6] == "!shrug":
+            say = ""
+
+            if len(msg['body']) > 6:
+              say = "\n      /" + u'\u00AF' + "- %s\n" % msg['body'][7:]
+
             self.mucbot.send_message(mto=msg['from'].bare,
-                mbody=u'\u00AF' + '\\_' + u'\u0028' + u'\u30C4' + u'\u0029' + '_/' + u'\u00AF',
+                mbody=say + u'\u00AF' + '\\_' + u'\u0028' + u'\u30C4' + u'\u0029' + '_/' + u'\u00AF',
                 mtype='groupchat')
 
     def help(self):
