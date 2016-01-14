@@ -2,7 +2,9 @@ import re
 import time
 import hashlib
 import binascii
+import base64
 import collections
+import string
 import sys
 
 class Hash():
@@ -26,6 +28,20 @@ class Hash():
         elif msg['body'][:6] == "!crc32":
             param = msg['body'][7:]
             body = "crc32(\"%s\") = %08x" % (param, binascii.crc32(param) & 0xffffffff)
+        elif msg['body'][:7] == "!base64":
+            param = msg['body'][8:]
+            body = "base64(\"%s\") = %s" % (param, base64.b64encode(param))
+        elif msg['body'][:9] == "!unbase64":
+            param = msg['body'][10:]
+            try:
+                decoded = base64.b64decode(param)
+            except:
+                body = "That's not valid base64!"
+            else:
+                if all(c in string.printable for c in decoded):
+                    body = "unbase64(\"%s\") = %s" % (param, decoded)
+                else:
+                    body = "unbase64(\"%s\") = binary: %s" % (param, decoded.encode('hex'))
 
         if len(body) > 0:
             self.mucbot.send_message(mto=msg['from'].bare,
@@ -34,7 +50,7 @@ class Hash():
 
     def help(self):
         ret = []
-        ret.append("md5, sha1, sha256, sha512, crc32 - return misc hash")
+        ret.append("md5, sha1, sha256, sha512, crc32, base64, unbase64 - return misc hash/checksum")
         return ret
 
 class MUCBotMock():
