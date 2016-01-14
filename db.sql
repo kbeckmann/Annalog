@@ -21,3 +21,8 @@ CREATE TABLE reminders (
 	time	bigint,
 	msg     text
 );
+
+CREATE TABLE karma (
+	name	text,
+	karma	bigint
+);

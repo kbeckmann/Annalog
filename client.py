@@ -29,6 +29,9 @@ from wolfram import Wolfram
 from youtube import YouTube
 from shrug import Shrug
 from rules import Rules
+from karma import Karma
+from localtime import LocalTime
+from uptime import UpTime
 import re
 
 import sleekxmpp
@@ -71,7 +74,10 @@ class MUCBot(sleekxmpp.ClientXMPP):
             Wolfram(self),
             YouTube(self),
             Shrug(self),
-            Rules(self)
+            Rules(self),
+            Karma(self),
+            LocalTime(self),
+            UpTime(self)
         ]
 
         self.room = room
