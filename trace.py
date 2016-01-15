@@ -20,7 +20,7 @@ class Trace():
                 mtype='groupchat')
 
     def help(self):
-        return ["mtr - traces a host"]
+        return ["trace - traces a host"]
 
 class MUCBotMock():
     def send_message(self, mto, mbody, mtype):
