@@ -7,6 +7,9 @@ class Trace():
     def trace(self, host):
         p = subprocess.Popen(['mtr', host, '--report', '-c', '1'], stdout=subprocess.PIPE)
         out, err = p.communicate()
+        lines = out.split('\n')
+        if (len(lines) > 11):
+            return '\n'.join(lines[:10] + ['--snip--'] + lines[-2:-1])
         return out
 
     def handle(self, msg):
