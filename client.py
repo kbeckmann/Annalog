@@ -33,6 +33,7 @@ from karma import Karma
 from localtime import LocalTime
 from uptime import UpTime
 from trace import Trace
+from allgone import AllGone
 import re
 
 import sleekxmpp
@@ -74,12 +75,9 @@ class MUCBot(sleekxmpp.ClientXMPP):
             Wiki(self),
             Wolfram(self),
             YouTube(self),
-            Shrug(self),
-            Rules(self),
             Karma(self),
-            LocalTime(self),
             UpTime(self),
-            Trace(self)
+            AllGone(self)
         ]
 
         self.room = room
