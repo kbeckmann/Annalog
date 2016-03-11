@@ -23,7 +23,7 @@ class LastSeen():
         db.commit()
         db.close()
 
-    def lastseen(self, nick, time, update):
+    def lastseen(self, nick, count, time, update):
         if len(nick) > 2 and nick.endswith("_m"):
             nick = nick[:-2]
 
@@ -36,11 +36,13 @@ class LastSeen():
             ret = row
 
         if update:
+            if count > 400:
+                count = 400
             if row:
                 # Sqlite does not now about cool stuff like INSERT OR UPDATE
-                db.execute('UPDATE lastseen SET time = ?, count=?  WHERE nick = ?', [time, (row[2] + 1), nick])
+                db.execute('UPDATE lastseen SET time = ?, count=?  WHERE nick = ?', [time, (row[2] + count), nick])
             else:
-                db.execute('INSERT INTO lastseen (nick, time, count) VALUES (?, ?, 1)', (nick, time) )
+                db.execute('INSERT INTO lastseen (nick, time, count) VALUES (?, ?, ?)', (nick, time, count) )
 
         db.commit()
         db.close()
@@ -68,7 +70,7 @@ class LastSeen():
     def handle(self, msg):
         if msg['body'][:9] == "!lastseen":
             nick = msg['body'][10:]
-            row = self.lastseen(nick, int(time.time()), False)
+            row = self.lastseen(nick, 0, int(time.time()), False)
             if row:
                 tdiff = datetime.now() - datetime.fromtimestamp(row[1])
                 h = divmod(tdiff.seconds, 3600)
@@ -103,9 +105,9 @@ class LastSeen():
             self.mucbot.send_message(mto=msg['from'].bare,
                 mbody=body,
                 mtype='groupchat')
-
-        # do the lastseen(...True) as the last step...
-        self.lastseen(msg['mucnick'], int(time.time()), True)
+        if not msg['mucnick'].startswith('Anna'):
+            # do the lastseen(...True) as the last step...
+            self.lastseen(msg['mucnick'], len(msg['body']), int(time.time()), True)
 
     def help(self):
         ret = []
