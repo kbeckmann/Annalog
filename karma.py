@@ -53,13 +53,13 @@ class Karma():
             db = sqlite3.connect('db.sq3')
             ret = None
 
-            c = db.execute('SELECT karma FROM karma where name = ?', [name])
+            c = db.execute('SELECT karma FROM karma where lower(name) = lower(?)', [name])
             row = c.fetchone()
             if row:
                 # Sqlite does not now about cool stuff like INSERT OR UPDATE
-                db.execute('UPDATE karma SET karma = karma + ? WHERE name = ?', [value, name])
+                db.execute('UPDATE karma SET karma = karma + ? WHERE lower(name) = lower(?)', [value, name])
             else:
-                db.execute('INSERT INTO karma (name, karma) values (?, ?)', [name, value])
+                db.execute('INSERT INTO karma (name, karma) values (lower(?), ?)', [name, value])
 
             db.commit()
             db.close()

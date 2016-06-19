@@ -13,7 +13,7 @@ class URLHandler():
         self.salt1 = "happy happy hippo"
         self.salt2 = "sad pandas are sad"
         self.whitelist = ["1b49f24e1acf03ef8ad1b803593227ca1b94868c29d41a8ab22fbc7b6d94342c"]
-        self.url_history = collections.deque(maxlen=100)
+        self.url_history = collections.deque(maxlen=1000)
 
     def hash(self, plaintext):
         return hashlib.sha256(self.salt1 + str(plaintext) + self.salt2).hexdigest()
@@ -70,22 +70,37 @@ class URLHandler():
             return
 
         for url in urls:
-            self.url_history.append(url)
+            if url not in self.url_history:
+                self.url_history.append(url)
 
             urldata = self.get_or_set(url, msg['mucnick'], int(time.time()))
+            karma = 0
 
             if urldata:
-                tdiff = datetime.now() - datetime.fromtimestamp(urldata[2])
-
                 if urldata[0].lower() == msg['mucnick'].lower():
-                    pass  #ignore if the user is the same
-#                    self.mucbot.send_message(mto=msg['from'].bare,
-#                        mbody="%s: Thats what you said (%s) ago" % (msg['mucnick'], tdiff),
-#                        mtype='groupchat')
+                    pass
                 else:
+                    karma = -1
+
+                    tdiff = datetime.now() - datetime.fromtimestamp(urldata[2])                
                     self.mucbot.send_message(mto=msg['from'].bare,
                         mbody="%s: Oooooooooold! %s was first (%s)" % (msg['mucnick'], urldata[0], tdiff),
                         mtype='groupchat')
+            else:
+                karma = 1
+
+            name = msg['mucnick']
+            db = sqlite3.connect('db.sq3')
+            c = db.execute('SELECT karma FROM karma where lower(name) = lower(?)', [name])
+            row = c.fetchone()
+            if row:
+                db.execute('UPDATE karma SET karma = karma + ? WHERE lower(name) = lower(?)', [karma, name])
+            else:
+                db.execute('INSERT INTO karma (name, karma) values (lower(?), ?)', [name, karma])
+
+            db.commit()
+            db.close()
+ 	
 
     def help(self):
 	return []
