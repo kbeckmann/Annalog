@@ -40,17 +40,21 @@ class URLHandler():
 
         return ret
 
+    def entry_to_string(self, entry):
+        nick = entry['nick'][0] + u'\u2063' + entry['nick'][1:]
+        return nick + ": " + entry['url']
+
     def handle(self, msg):
         if msg['body'][:4] == "!url":
             matches = []
             if len(msg['body']) > 5 and msg['body'][4] == ' ':
-                for url in self.url_history:
-                    if msg['body'][5:] in url:
-                        matches.append(url)
+                for entry in self.url_history:
+                    if msg['body'][5:] in entry['url']:
+                        matches.append(entry)
 
                 if len(matches) > 0:
                     self.mucbot.send_message(mto=msg['from'].bare,
-                        mbody="URL History (matching \"%s\"):\n%s" % (msg['body'][5:], "\n".join(matches)),
+                        mbody="URL History (matching \"%s\"):\n%s" % (msg['body'][5:], "\n".join([self.entry_to_string(x) for x in matches])),
                         mtype='groupchat')
                 else:
                     self.mucbot.send_message(mto=msg['from'].bare,
@@ -59,7 +63,7 @@ class URLHandler():
             else:
                 q_size = len(self.url_history)
                 self.mucbot.send_message(mto=msg['from'].bare,
-                    mbody="URL History: %s" % ("Empty" if q_size == 0 else "\n" + "\n".join([self.url_history[i] for i in range(max(0, q_size-10), q_size)])),
+                    mbody="URL History: %s" % ("Empty" if q_size == 0 else "\n" + "\n".join([self.entry_to_string(self.url_history[i]) for i in range(max(0, q_size-10), q_size)])),
                     mtype='groupchat')
 
         if msg['body'][:11] == "URL History" or msg['body'][:1] == "!" or msg['mucnick'] == "Annarchy" or msg['mucnick'] == "Annartur":
@@ -71,7 +75,7 @@ class URLHandler():
 
         for url in urls:
             if url not in self.url_history:
-                self.url_history.append(url)
+                self.url_history.append({"url": url, "nick" : msg['mucnick']})
 
             urldata = self.get_or_set(url, msg['mucnick'], int(time.time()))
             karma = 0
@@ -82,7 +86,7 @@ class URLHandler():
                 else:
                     karma = -1
 
-                    tdiff = datetime.now() - datetime.fromtimestamp(urldata[2])                
+                    tdiff = datetime.now() - datetime.fromtimestamp(urldata[2])
                     self.mucbot.send_message(mto=msg['from'].bare,
                         mbody="%s: Oooooooooold! %s was first (%s)" % (msg['mucnick'], urldata[0], tdiff),
                         mtype='groupchat')
@@ -100,7 +104,7 @@ class URLHandler():
 
             db.commit()
             db.close()
- 	
+
 
     def help(self):
 	return []
@@ -130,8 +134,19 @@ def do_test():
     msg = {"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "hello http://events.ccc.de/congress/22014"}
     x.handle(msg)
 
-    msg = {"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url"}
-    x.handle(msg)
+    print "searching for blabla.."
+    x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url blabla"})
+
+    print "searching for ccc"
+    x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url ccc"})
+
+    for i in range(20):
+        x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "foobar", "body" : "look here http://example.com/" + str(i)})
+
+    x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url example"})
+
+    x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url"})
+
 
 if __name__ == "__main__":
     if len(sys.argv) == 2:
