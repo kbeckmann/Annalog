@@ -12,12 +12,12 @@ class YouTube():
         if msg['body'][:11] == "URL History" or msg['body'][:1] == "!" or msg['mucnick'] == "Annarchy":
             return
 
-        urls = re.findall('(?:https?://|//)?(?:www\.|m\.)?(?:youtu\.be/|youtube\.com/(?:embed/|v/|watch\?v=|watch\?.+&v=))([\w-]{11})(?![\w-])', msg['body'])
+        urls = re.findall('(?:https?://|//)?(?:www\.|m\.)?(?:youtu\.be/|youtube\.com/(?:embed/|v/|watch\?v=|watch\?.+&v=))([\w-]*)(?![\w-])', msg['body'])
         if not urls:
             return
 
         for url in urls:
-            video = pafy.new(url)
+            video = pafy.new(url[:11])
             body = "Video Title: \"%s\" Duration: %s" % (video.title, video.duration)
 
             self.mucbot.send_message(mto=msg['from'].bare,
@@ -38,6 +38,9 @@ class FromMock():
 def do_test():
     x = YouTube(MUCBotMock())
     msg = {"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "check this video! http://www.youtube.com/watch?v=cyMHZVT91Dw"}
+    x.handle(msg)
+    
+    msg = {"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "check this video! http://www.youtube.com/watch?v=cyMHZVT91Dw000000000"}
     x.handle(msg)
 
 if __name__ == "__main__":
