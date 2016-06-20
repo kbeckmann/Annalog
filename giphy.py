@@ -13,7 +13,11 @@ class Giphy():
 
     def giphy(self, q):
         data = json.load(urllib2.urlopen("http://api.giphy.com/v1/gifs/random?api_key=dc6zaTOxFJmzC&tag=%s" % urllib.quote_plus(q)))
-        return data["data"]["image_original_url"];
+
+        if len(data["data"]) > 0:
+            return data["data"]["image_original_url"];
+
+        return "https://media.giphy.com/media/4SD55a1RnZCdq/giphy.gif"
 
     def handle(self, msg):
         if msg['body'][:6] == "!giphy":
