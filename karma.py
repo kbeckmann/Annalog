@@ -13,6 +13,19 @@ import sqlite3
 class Karma():
     def __init__(self, mucbot):
         self.mucbot = mucbot
+        # merge nick_m and nick
+        db = sqlite3.connect('db.sq3')
+        c = db.execute('SELECT name, karma from karma WHERE name like "%_m"')
+        while True:
+            row = c.fetchone()
+            if (row):
+                db.execute('UPDATE karma SET karma = karma + ? WHERE name = ?', [row[1], row[0][:-2]])
+            else:
+                break
+
+        db.execute('DELETE FROM karma WHERE name like "%_m"')
+        db.commit()
+        db.close()
 
     def handle(self, msg):
         if msg['body'][:6] == "!karma":
@@ -47,6 +60,9 @@ class Karma():
                 self.mucbot.send_message(mto=msg['from'].bare,
                     mbody='Nonononono',
                     mtype='groupchat')
+
+            if len(name) > 2 and name.endswith("_m"):
+                name = name[:-2]
 
             value = 1 if msg['body'][:3] == '!++' else -1
 
