@@ -5,7 +5,11 @@ import hashlib
 import sqlite3
 import collections
 import sys
+import pickle
+import os.path
 from datetime import datetime
+
+DEQUEUE_FILENAME = 'url_history.pickle'
 
 class URLHandler():
     def __init__(self, mucbot):
@@ -13,7 +17,12 @@ class URLHandler():
         self.salt1 = "happy happy hippo"
         self.salt2 = "sad pandas are sad"
         self.whitelist = ["1b49f24e1acf03ef8ad1b803593227ca1b94868c29d41a8ab22fbc7b6d94342c"]
-        self.url_history = collections.deque(maxlen=1000)
+
+        if os.path.isfile(DEQUEUE_FILENAME):
+            deque_file = open(DEQUEUE_FILENAME, 'rb')
+            self.url_history = pickle.load(deque_file)
+        else:
+            self.url_history = collections.deque(maxlen=1000)
 
     def hash(self, plaintext):
         return hashlib.sha256(self.salt1 + str(plaintext) + self.salt2).hexdigest()
@@ -79,12 +88,14 @@ class URLHandler():
 
             urldata = self.get_or_set(url, msg['mucnick'], int(time.time()))
             karma = 0
+            op = ''
 
             if urldata:
                 if urldata[0].lower() == msg['mucnick'].lower():
                     pass
                 else:
                     karma = -1
+                    op = urldata[0].lower()
 
                     tdiff = datetime.now() - datetime.fromtimestamp(urldata[2])
                     self.mucbot.send_message(mto=msg['from'].bare,
@@ -95,6 +106,8 @@ class URLHandler():
 
             name = msg['mucnick']
             db = sqlite3.connect('db.sq3')
+
+            # Add or remove karma of url poster
             c = db.execute('SELECT karma FROM karma where lower(name) = lower(?)', [name])
             row = c.fetchone()
             if row:
@@ -102,12 +115,23 @@ class URLHandler():
             else:
                 db.execute('INSERT INTO karma (name, karma) values (lower(?), ?)', [name, karma])
 
+            # If repost, give karma to OP
+            if karma < 0 and len(op) > 0:
+                c = db.execute('SELECT karma FROM karma where lower(name) = lower(?)', [op])
+                row = c.fetchone()
+                if row:
+                    db.execute('UPDATE karma SET karma = karma + 1 WHERE lower(name) = lower(?)', [op])
+                else:
+                   db.execute('INSERT INTO karma (name, karma) values (lower(?), 1)', [op])
+
             db.commit()
             db.close()
 
+        deque_file = open(DEQUEUE_FILENAME, 'wb')
+        pickle.dump(self.url_history, deque_file)
 
     def help(self):
-	return []
+        return []
 
 # Importer
 def do_import(path):
