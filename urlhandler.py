@@ -9,7 +9,7 @@ import pickle
 import os.path
 from datetime import datetime
 
-DEQUEUE_FILENAME = 'url_history.pickle'
+DEQUEUE_FILENAME = 'url_history_%s.pickle'
 
 class URLHandler():
     def __init__(self, mucbot):
@@ -18,8 +18,8 @@ class URLHandler():
         self.salt2 = "sad pandas are sad"
         self.whitelist = ["1b49f24e1acf03ef8ad1b803593227ca1b94868c29d41a8ab22fbc7b6d94342c"]
 
-        if os.path.isfile(DEQUEUE_FILENAME):
-            deque_file = open(DEQUEUE_FILENAME, 'rb')
+        if os.path.isfile(DEQUEUE_FILENAME % self.mucbot.room):
+            deque_file = open(DEQUEUE_FILENAME % self.mucbot.room, 'rb')
             self.url_history = pickle.load(deque_file)
         else:
             self.url_history = collections.deque(maxlen=1000)
@@ -127,7 +127,7 @@ class URLHandler():
             db.commit()
             db.close()
 
-        deque_file = open(DEQUEUE_FILENAME, 'wb')
+        deque_file = open(DEQUEUE_FILENAME % self.mucbot.room, 'wb')
         pickle.dump(self.url_history, deque_file)
 
     def help(self):
@@ -146,6 +146,9 @@ def do_import(path):
 
 # Test and mock
 class MUCBotMock():
+    def __init__(self):
+        self.room = 'foo@example.com'
+
     def send_message(self, mto, mbody, mtype):
         print "MUCBotMock:", mto, mbody, mtype
 
@@ -155,6 +158,10 @@ class FromMock():
 
 def do_test():
     x = URLHandler(MUCBotMock())
+
+    print "searching for ccc"
+    x.handle({"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "!url ccc"})
+
     msg = {"from" : FromMock("channel@example.com"), "mucnick" : "kallsse", "body" : "hello http://events.ccc.de/congress/22014"}
     x.handle(msg)
 

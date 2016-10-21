@@ -18,7 +18,6 @@ from datetime import datetime
 import json
 from urlhandler import URLHandler
 from lastseen import LastSeen
-from google import Google
 from dice import Dice
 from hash import Hash
 from eightball import EightBall
@@ -63,27 +62,23 @@ class MUCBot(sleekxmpp.ClientXMPP):
 
     def __init__(self, jid, password, room, nick):
         sleekxmpp.ClientXMPP.__init__(self, jid, password)
-        
+
+        self.room = room
+        self.nick = nick
+
         self.plugins = [
             URLHandler(self), 
             LastSeen(self), 
-            Google(self), 
-            Dice(self), 
             Hash(self),
             EightBall(self),
             RemindMe(self),
-            IsUp(self),
             Wiki(self),
             Wolfram(self),
             YouTube(self),
             Karma(self),
             UpTime(self),
             AllGone(self),
-            Giphy(self)
         ]
-
-        self.room = room
-        self.nick = nick
 
         # The session_start event will be triggered when
         # the bot establishes its connection with the server
