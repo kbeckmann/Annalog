@@ -74,8 +74,8 @@ class RemindMe():
                 try:
                     cal = pdt.Calendar()
                     if cal.parse(reqTime)[1] == 0:
-                        body = "For being a dick, the reminder was set for 15 minutes!"
-                        reqMsg = "not be a dick anymore"
+                        body = "For being an asshole, the reminder was set for 15 minutes!"
+                        reqMsg = "not be an asshole anymore"
                         reqUser = msg['mucnick']
                         holdTime = cal.parse("15 minutes", datetime.now(tz.tzlocal()))
                     else:
