@@ -29,6 +29,7 @@ class LastSeen():
 
         db = sqlite3.connect('db.sq3')
         ret = None
+        nick = nick.lower()
 
         c = db.execute('SELECT nick, time, count FROM lastseen WHERE nick = ? LIMIT 1', [nick])
         row = c.fetchone()
