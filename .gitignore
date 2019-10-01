@@ -1,2 +1,7 @@
 *.pyc
-*.sq3
+*.sq3*
+*.db3*
+*.out
+*.pickle
+logs
+*.sh
