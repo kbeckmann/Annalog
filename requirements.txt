@@ -1,0 +1,9 @@
+parsedatetime
+sleekxmpp
+pytz
+python-dateutil
+wikipedia
+pafy
+youtube-dl
+python-twitter
+dnspython
