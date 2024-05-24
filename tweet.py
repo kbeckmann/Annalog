@@ -15,7 +15,7 @@ class Twitter():
         if msg['body'][:11] == "URL History" or msg['body'][:1] == "!" or msg['mucnick'] == "Annarchy":
             return
 
-        statuses = re.findall('(?:https?://|//)?(?:www\.|m\.)?(?:twitter\.com/(?:[A-z0-9_-]*/status/))([\w-]*)(?![\w-])', msg['body'])
+        statuses = re.findall('(?:https?://|//)?(?:www\.|m\.)?(?:(?:twitter|x)\.com/(?:[A-z0-9_-]*/status/))([\w-]*)(?![\w-])', msg['body'])
         if not statuses:
             return
 
