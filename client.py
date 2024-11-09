@@ -35,6 +35,7 @@ from trace import Trace
 from allgone import AllGone
 from giphy import Giphy
 from tweet import Twitter
+from skeet import Bluesky
 import re
 
 import sleekxmpp
@@ -80,6 +81,7 @@ class MUCBot(sleekxmpp.ClientXMPP):
             UpTime(self),
             AllGone(self),
             Twitter(self),
+            Bluesky(self),
         ]
 
         # The session_start event will be triggered when
